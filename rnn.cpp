@@ -8,11 +8,11 @@ double RNN::sig(double input)
 
 double RNN::tanh(double input)
 {
-    // Derivative: 1.0-((tanh(input))^2)
+    // Derivative: 1.0-pow(tanh(input),2.0)
     return (1.0-pow(M_E,-2.0*input))/(1.0+pow(M_E,-2.0*input));
 }
 
-RNN::RNN(uint32_t _inputCount, uint32_t _outputCount, uint32_t _backpropagationSteps, double _learningRate, uint32_t _layerCount, uint32_t *_layerNeuronCounts)
+RNN::RNN(uint32_t _inputCount, uint32_t _outputCount, uint32_t _backpropagationSteps, double _learningRate, double _momentum, double _weightDecay, uint32_t _layerCount, uint32_t *_layerNeuronCounts)
 {
     // Here, the input and output layers are meant to be included in "_layerCount" and "_layerNeuronCounts".
     inputCount=_inputCount;
@@ -20,6 +20,8 @@ RNN::RNN(uint32_t _inputCount, uint32_t _outputCount, uint32_t _backpropagationS
     inputAndOutputCount=inputCount+outputCount;
     backpropagationSteps=_backpropagationSteps;
     learningRate=_learningRate;
+    momentum=_momentum;
+    weightDecay=_weightDecay;
     layerCount=_layerCount;
     if(_layerCount<2)
         throw;
@@ -39,6 +41,25 @@ RNN::RNN(uint32_t _inputCount, uint32_t _outputCount, uint32_t _backpropagationS
     stateArraySize=2*backpropagationSteps+1 /*One for the current state.*/;
     stateArrayPos=0xffffffff;
     states=(RNNState**)malloc(stateArraySize*sizeof(RNNState*));
+    previousWeightDiff=(double***)malloc((layerCount-1)*sizeof(double**));
+    previousBiasWeightDiff=(double**)malloc((layerCount-1)*sizeof(double*));
+
+    for(uint32_t thisLayer=1 /*Input layer not included*/;thisLayer<layerCount;thisLayer++)
+    {
+        uint32_t weightLayerIndex=thisLayer-1;
+        uint32_t neuronsInPreviousLayer=layerNeuronCounts[thisLayer-1];
+        uint32_t neuronsInThisLayer=layerNeuronCounts[thisLayer];
+        previousWeightDiff[weightLayerIndex]=(double**)malloc(neuronsInPreviousLayer*sizeof(double*));
+        for(uint32_t neuronInPreviousLayer=0;neuronInPreviousLayer<neuronsInPreviousLayer;neuronInPreviousLayer++)
+        {
+            previousWeightDiff[weightLayerIndex][neuronInPreviousLayer]=(double*)malloc(neuronsInThisLayer*sizeof(double));
+            for(uint32_t neuronInThisLayer=0;neuronInThisLayer<neuronsInThisLayer;neuronInThisLayer++)
+                previousWeightDiff[weightLayerIndex][neuronInPreviousLayer][neuronInThisLayer]=0.0;
+        }
+        previousBiasWeightDiff[weightLayerIndex]=(double*)malloc(neuronsInThisLayer*sizeof(double));
+        for(uint32_t neuronInThisLayer=0;neuronInThisLayer<neuronsInThisLayer;neuronInThisLayer++)
+            previousBiasWeightDiff[weightLayerIndex][neuronInThisLayer]=0.0;
+    }
 }
 
 RNN::~RNN()
@@ -47,6 +68,19 @@ RNN::~RNN()
         delete states[layer];
     free(states);
     free(layerNeuronCounts);
+
+    for(uint32_t thisLayer=1 /*Input layer not included*/;thisLayer<layerCount;thisLayer++)
+    {
+        uint32_t layerNonInputLayerIndex=thisLayer-1;
+        uint32_t neuronsInPreviousLayer=layerNeuronCounts[thisLayer-1];
+
+        for(uint32_t neuronInPreviousLayer;neuronInPreviousLayer<neuronsInPreviousLayer;neuronInPreviousLayer++)
+            free(previousWeightDiff[layerNonInputLayerIndex][neuronInPreviousLayer]);
+        free(previousBiasWeightDiff[layerNonInputLayerIndex]);
+        free(previousWeightDiff[layerNonInputLayerIndex]);
+    }
+    free(previousWeightDiff);
+    free(previousBiasWeightDiff);
 }
 
 RNNState *RNN::pushState()
@@ -257,8 +291,20 @@ void RNN::learn(double **desiredOutputs)
         {
             // +=, not -= needed!
             for(uint32_t neuronInPreviousLayer=0;neuronInPreviousLayer<neuronsInPreviousLayer;neuronInPreviousLayer++)
-                latestState->weights[thisLayer-1 /*Input layer not included*/][neuronInPreviousLayer][neuronInThisLayer]+=learningRate*weightDiff[thisLayer-1 /*Input layer not included*/][neuronInPreviousLayer][neuronInThisLayer];
-            latestState->biasWeights[thisLayer-1 /*Input layer not included*/][neuronInThisLayer]+=learningRate*biasDiff[thisLayer-1 /*Input layer not included*/][neuronInThisLayer];
+            {
+                double currentWeight=latestState->weights[thisLayer-1 /*Input layer not included*/][neuronInPreviousLayer][neuronInThisLayer];
+                double _weightDiff=weightDiff[thisLayer-1 /*Input layer not included*/][neuronInPreviousLayer][neuronInThisLayer];
+                double previousDelta=previousWeightDiff[thisLayer-1 /*Input layer not included*/][neuronInPreviousLayer][neuronInThisLayer];
+                double thisDelta=(1.0-momentum)*learningRate*_weightDiff+momentum*previousDelta-weightDecay*currentWeight;
+                latestState->weights[thisLayer-1 /*Input layer not included*/][neuronInPreviousLayer][neuronInThisLayer]+=thisDelta;
+                previousWeightDiff[thisLayer-1 /*Input layer not included*/][neuronInPreviousLayer][neuronInThisLayer]=thisDelta;
+            }
+            double previousDelta=previousBiasWeightDiff[thisLayer-1 /*Input layer not included*/][neuronInThisLayer];
+            double currentWeight=latestState->biasWeights[thisLayer-1 /*Input layer not included*/][neuronInThisLayer];
+            double _weightDiff=biasDiff[thisLayer-1 /*Input layer not included*/][neuronInThisLayer];
+            double thisDelta=(1.0-momentum)*learningRate*_weightDiff+momentum*previousDelta-weightDecay*currentWeight;
+            latestState->biasWeights[thisLayer-1 /*Input layer not included*/][neuronInThisLayer]+=thisDelta;
+            previousBiasWeightDiff[thisLayer-1 /*Input layer not included*/][neuronInThisLayer]=thisDelta;
         }
         for(uint32_t neuronInPreviousLayer=0;neuronInPreviousLayer<neuronsInPreviousLayer;neuronInPreviousLayer++)
             free(weightDiff[thisLayer-1][neuronInPreviousLayer]);

@@ -75,7 +75,7 @@ RNNState::RNNState(RNNState *copyFrom, uint32_t _inputCount, uint32_t _outputCou
             {
                biasWeights[thisLayer-1]=(double*)malloc(neuronsInThisLayerBasedDoubleArraySize);
                for(uint32_t neuronInThisLayer=0;neuronInThisLayer<neuronsInThisLayer;neuronInThisLayer++)
-                   biasWeights[thisLayer-1][neuronInThisLayer]=-0.1+(((double)rand())/((double)RAND_MAX))*0.2;
+                   biasWeights[thisLayer-1][neuronInThisLayer]=0.0;
 
                 uint32_t neuronsInPreviousLayer=layerNeuronCounts[thisLayer-1];
                 uint32_t weightLayerIndex=thisLayer-1 /*Input layer not included*/;

@@ -24,12 +24,17 @@ public:
     RNNState **states; // Stores previous iterations
 
     double learningRate;
+    double momentum;
+    double weightDecay;
     uint32_t inputCount;
     uint32_t outputCount;
     uint32_t inputAndOutputCount;
     uint32_t layerCount;
     uint32_t backpropagationSteps;
     uint32_t *layerNeuronCounts;
+
+    double ***previousWeightDiff;
+    double **previousBiasWeightDiff;
 
 
     static double sig(double input); // sigmoid function
@@ -42,7 +47,7 @@ public:
     uint32_t getAvailableStepsBack();
     RNNState *getState(uint32_t stepsBack);
 
-    RNN(uint32_t _inputCount,uint32_t _outputCount,uint32_t _backpropagationSteps,double _learningRate,uint32_t _layerCount=2,uint32_t *_layerNeuronCounts=0);
+    RNN(uint32_t _inputCount,uint32_t _outputCount,uint32_t _backpropagationSteps,double _learningRate,double _momentum,double _weightDecay,uint32_t _layerCount=2,uint32_t *_layerNeuronCounts=0);
     ~RNN();
 
     double *process(double *input);

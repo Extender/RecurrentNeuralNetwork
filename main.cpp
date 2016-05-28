@@ -59,7 +59,9 @@ int main(int argc, char *argv[])
     uint32_t effectiveOutputCount=outputCount+additionalMemoryNeuronCount;
     uint32_t backpropagationSteps=3;
     double learningRate=0.1; // Do not set the learning rate too high, or else the weights may explode!
-    RNN *rnn=new RNN(inputCount,effectiveOutputCount,backpropagationSteps,learningRate,2);
+    double momentum=0.9;
+    double weightDecay=0.0001;
+    RNN *rnn=new RNN(inputCount,effectiveOutputCount,backpropagationSteps,learningRate,momentum,weightDecay,2);
     uint64_t cycle=0;
     char *str;
     double **desiredOutputs=(double**)malloc((backpropagationSteps+1)*sizeof(double*));
